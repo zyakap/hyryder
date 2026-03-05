@@ -1,0 +1,107 @@
+name: CI — Test, Lint, Build
+
+on:
+  push:
+    branches: [main, master, "claude/**"]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  backend-tests:
+    name: Backend — pytest + ruff + mypy
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_DB: rideshare_test
+          POSTGRES_USER: rideshare
+          POSTGRES_PASSWORD: testpassword
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install GDAL system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin libgdal-dev libgeos-dev libproj-dev binutils
+
+      - name: Install Python dependencies
+        run: pip install -r requirements/development.txt
+
+      - name: Run ruff linter
+        run: ruff check .
+
+      - name: Run black formatter check
+        run: black --check .
+
+      - name: Run mypy type checking
+        run: mypy apps/ --ignore-missing-imports
+        continue-on-error: true
+
+      - name: Run pytest
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.development
+          DATABASE_URL: postgis://rideshare:testpassword@localhost:5432/rideshare_test
+          REDIS_URL: redis://localhost:6379/0
+          CELERY_BROKER_URL: redis://localhost:6379/2
+          CHANNEL_LAYERS_REDIS_URL: redis://localhost:6379/1
+          SECRET_KEY: ci-test-secret-key-not-for-production
+          FIELD_ENCRYPTION_KEY: 12345678901234567890123456789012
+        run: |
+          python manage.py migrate --settings=config.settings.development
+          pytest --cov=apps --cov-report=xml
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: backend/coverage.xml
+          fail_ci_if_error: false
+
+  frontend-typecheck:
+    name: Frontend — TypeScript + ESLint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build shared types
+        run: npm run build --workspace=packages/shared-types
+
+      - name: Typecheck admin-web
+        run: npm run typecheck --workspace=admin-web
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: [backend-tests, frontend-typecheck]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy (stub — configure AWS ECS deploy here)
+        run: echo "Deploy to staging ECS cluster"

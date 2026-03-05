@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "HyRyder Driver",
+    "slug": "hyryder-driver",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0F2347"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.hyryder.driver"
+    },
+    "android": {
+      "package": "com.hyryder.driver",
+      "minSdkVersion": 28,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION"
+      ]
+    },
+    "plugins": ["expo-router", "expo-location", "expo-notifications"],
+    "scheme": "hyryder-driver"
+  }
+}
