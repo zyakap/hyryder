@@ -1,0 +1,122 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: rideshare
+      POSTGRES_USER: rideshare
+      POSTGRES_PASSWORD: localpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rideshare -d rideshare"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  django:
+    build:
+      context: ./backend
+      target: development
+    command: python manage.py runserver 0.0.0.0:8000
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    env_file: ./backend/.env
+    ports:
+      - "8000:8000"
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.development
+
+  channels:
+    build:
+      context: ./backend
+      target: development
+    command: daphne -b 0.0.0.0 -p 8001 config.asgi:application
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    env_file: ./backend/.env
+    ports:
+      - "8001:8001"
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.development
+
+  celery:
+    build:
+      context: ./backend
+      target: development
+    command: celery -A config worker --loglevel=info --concurrency=4
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    env_file: ./backend/.env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.development
+
+  celery-beat:
+    build:
+      context: ./backend
+      target: development
+    command: celery -A config beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    env_file: ./backend/.env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.development
+
+  flower:
+    build:
+      context: ./backend
+      target: development
+    command: celery -A config flower --port=5555
+    restart: unless-stopped
+    depends_on:
+      - redis
+    env_file: ./backend/.env
+    ports:
+      - "5555:5555"
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.development
+
+volumes:
+  postgres_data:
+  redis_data:

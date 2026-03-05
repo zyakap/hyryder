@@ -1,0 +1,83 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Turborepo cache
+.turbo/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Python / Django
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.mypy_cache/
+.pytest_cache/
+htmlcov/
+*.egg-info/
+dist/
+build/
+*.egg
+MANIFEST
+
+# Django specific
+*.sqlite3
+local_settings.py
+media/
+staticfiles/
+
+# React Native / Expo
+.expo/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+ios/
+android/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Terraform
+infrastructure/**/.terraform/
+infrastructure/**/terraform.tfstate
+infrastructure/**/terraform.tfstate.backup
+infrastructure/**/.terraform.lock.hcl
+*.tfvars
+
+# Docker
+.dockerignore
