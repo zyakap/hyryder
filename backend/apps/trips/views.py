@@ -11,6 +11,12 @@ from apps.notifications.tasks import notify_trip_status_change
 logger = structlog.get_logger(__name__)
 
 
+def _release_driver(driver):
+    """Mark the driver's location record as no longer on an active trip."""
+    from apps.location.models import DriverLocation
+    DriverLocation.objects.filter(driver=driver).update(has_active_trip=False)
+
+
 class RequestTripView(generics.CreateAPIView):
     serializer_class = TripCreateSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -77,6 +83,10 @@ def update_trip_status(request, trip_id):
 
     trip.status = new_status
     trip.save()
+
+    if new_status == TripStatus.COMPLETED:
+        _release_driver(trip.driver)
+
     notify_trip_status_change.delay(trip.id, new_status)
     return Response(TripSerializer(trip).data)
 
@@ -105,6 +115,10 @@ def cancel_trip(request, trip_id):
     trip.cancelled_at = timezone.now()
     trip.cancellation_note = request.data.get("note", "")
     trip.save()
+
+    if trip.driver:
+        _release_driver(trip.driver)
+
     notify_trip_status_change.delay(trip.id, TripStatus.CANCELLED)
     return Response(TripSerializer(trip).data)
 

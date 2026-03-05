@@ -37,6 +37,7 @@ def match_driver(self, trip_id: int):
         trip.status = TripStatus.CANCELLED
         trip.cancellation_reason = CancellationReason.NO_DRIVER_FOUND
         trip.save()
+        # No driver was ever assigned, nothing to release
         return
 
     best = nearby[0]

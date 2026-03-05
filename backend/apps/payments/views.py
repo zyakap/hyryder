@@ -42,7 +42,7 @@ def confirm_cash_payment(request):
     except Trip.DoesNotExist:
         return Response({"detail": "Trip not found."}, status=404)
 
-    payment, _ = Payment.objects.get_or_create(
+    payment, created = Payment.objects.get_or_create(
         trip=trip,
         defaults={
             "passenger": trip.passenger,
@@ -53,6 +53,12 @@ def confirm_cash_payment(request):
             "driver_earnings_toea": trip.final_fare_toea - trip.platform_fee_toea,
         },
     )
+
+    # Idempotency: if this payment was already completed, return early without
+    # double-crediting the driver's wallet.
+    if not created and payment.status == PaymentStatus.COMPLETED:
+        return Response({"detail": "Cash payment already confirmed.", "payment_id": payment.id})
+
     payment.status = PaymentStatus.COMPLETED
     payment.completed_at = timezone.now()
     payment.save()
@@ -60,7 +66,7 @@ def confirm_cash_payment(request):
     trip.is_paid = True
     trip.save()
 
-    # Credit driver wallet
+    # Credit driver wallet (runs exactly once per payment)
     profile = trip.driver.driver_profile
     profile.wallet_balance_toea += payment.driver_earnings_toea
     profile.total_earnings_toea += payment.driver_earnings_toea
@@ -81,7 +87,9 @@ def request_payout(request):
     except Exception:
         return Response({"detail": "Driver profile not found."}, status=400)
 
-    if not amount_toea or int(amount_toea) > profile.wallet_balance_toea:
+    if not amount_toea or int(amount_toea) <= 0:
+        return Response({"detail": "Payout amount must be greater than zero."}, status=400)
+    if int(amount_toea) > profile.wallet_balance_toea:
         return Response({"detail": "Insufficient wallet balance."}, status=400)
 
     payout = DriverPayout.objects.create(

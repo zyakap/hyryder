@@ -1,15 +1,27 @@
 """WebSocket consumer — real-time trip state for passengers & drivers."""
-import json
+from django.db.models import Q
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 
 
 class TripConsumer(AsyncJsonWebsocketConsumer):
+    @database_sync_to_async
+    def _user_is_trip_member(self, trip_id, user):
+        from .models import Trip
+        return Trip.objects.filter(
+            id=trip_id
+        ).filter(
+            Q(passenger=user) | Q(driver=user)
+        ).exists()
+
     async def connect(self):
         self.trip_id = self.scope["url_route"]["kwargs"]["trip_id"]
         self.group_name = f"trip_{self.trip_id}"
         user = self.scope["user"]
         if not user.is_authenticated:
+            await self.close()
+            return
+        if not await self._user_is_trip_member(self.trip_id, user):
             await self.close()
             return
         await self.channel_layer.group_add(self.group_name, self.channel_name)
